@@ -1,0 +1,135 @@
+name: servarr2
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8080:8080/tcp # sabnzbd
+      - 8090:8090/tcp # qbittorrent ui
+      - 6881:6881 #qbittorrent
+      - 6881:6881/udp #qbittorrent
+    volumes:
+      - ${ROOT}/gluetun:/gluetun
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+      - VPN_SERVICE_PROVIDER=mullvad
+      - VPN_TYPE=wireguard
+      - WIREGUARD_ENDPOINT_PORT=51820
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=10.66.127.255/32
+    restart: always
+  qbittorrent:
+    image: ghcr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+      - WEBUI_PORT=8090
+    volumes:
+      - ${ROOT}/qbittorrent:/config
+      - type: bind
+        source: ${ROOT}/data/downloads/torrents
+        target: /data/downloads/torrents
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    restart: unless-stopped
+  sabnzbd:
+    image: ghcr.io/linuxserver/sabnzbd
+    container_name: sabnzbd
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    volumes:
+      - ${ROOT}/sabnzbd:/config
+      - type: bind
+        source: ${ROOT}/data/downloads/usenet
+        target: /data/downloads/usenet
+    depends_on:
+      gluetun:
+        condition: service_healthy
+
+  radarr:
+    image: ghcr.io/linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    ports:
+      - 7878:7878
+    volumes:
+      - ${ROOT}/radarr:/config
+      - type: bind
+        source: ${ROOT}/data
+        target: /data
+    restart: unless-stopped
+  sonarr:
+    image: ghcr.io/linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    ports:
+      - 8989:8989
+    volumes:
+      - ${ROOT}/sonarr:/config
+      - type: bind
+        source: ${ROOT}/data
+        target: /data
+    restart: unless-stopped
+  prowlarr:
+    image: ghcr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    ports:
+      - 9696:9696
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    volumes:
+      - ${ROOT}/prowlarr:/config
+    restart: unless-stopped
+  jellyseerr:
+    deploy:
+      replicas: 0
+    image: ghcr.io/fallenbagel/jellyseerr
+    container_name: jellyseerr
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+      - LOG_LEVEL=debug
+      - PORT=5055
+    ports:
+      - 5055:5055
+    volumes:
+      - ${ROOT}/jellyseer:/app/config
+    restart: unless-stopped
+  jellyfin:
+    image: ghcr.io/linuxserver/jellyfin
+    container_name: jellyfin
+    ports:
+      - 8096:8096
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    volumes:
+      - ${ROOT}/jellyfin:/config
+      - ${ROOT}/cache:/cache
+      - type: bind
+        source: ${ROOT}/data
+        target: /data
+    restart: "unless-stopped"
