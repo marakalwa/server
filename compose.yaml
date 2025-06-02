@@ -1,5 +1,19 @@
 name: servarr2
 services:
+  ngninx-proxy-manager:
+    image: "jc21/nginx-proxy-manager:latest"
+    restart: unless-stopped
+    ports:
+      - "7172:80"
+      - "7171:81"
+      - "7173:443"
+    volumes:
+      - ${ROOT}/nginx:/data
+      - ${ROOT}/letsencrypt:/etc/letsencrypt
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
   gluetun:
     image: qmcgaw/gluetun
     container_name: gluetun
@@ -36,7 +50,7 @@ services:
     volumes:
       - ${ROOT}/qbittorrent:/config
       - type: bind
-        source: ${ROOT}/data/downloads/torrents
+        source: ${DATAROOT}/data/downloads/torrents
         target: /data/downloads/torrents
     depends_on:
       gluetun:
@@ -46,6 +60,7 @@ services:
     image: ghcr.io/linuxserver/sabnzbd
     container_name: sabnzbd
     network_mode: "service:gluetun"
+    restart: unless-stopped
     environment:
       - PUID=${UID}
       - PGID=${GID}
@@ -53,12 +68,11 @@ services:
     volumes:
       - ${ROOT}/sabnzbd:/config
       - type: bind
-        source: ${ROOT}/data/downloads/usenet
+        source: ${DATAROOT}/data/downloads/usenet
         target: /data/downloads/usenet
     depends_on:
       gluetun:
         condition: service_healthy
-
   radarr:
     image: ghcr.io/linuxserver/radarr
     container_name: radarr
@@ -71,7 +85,7 @@ services:
     volumes:
       - ${ROOT}/radarr:/config
       - type: bind
-        source: ${ROOT}/data
+        source: ${DATAROOT}/data
         target: /data
     restart: unless-stopped
   sonarr:
@@ -86,7 +100,7 @@ services:
     volumes:
       - ${ROOT}/sonarr:/config
       - type: bind
-        source: ${ROOT}/data
+        source: ${DATAROOT}/data
         target: /data
     restart: unless-stopped
   prowlarr:
@@ -102,8 +116,6 @@ services:
       - ${ROOT}/prowlarr:/config
     restart: unless-stopped
   jellyseerr:
-    deploy:
-      replicas: 0
     image: ghcr.io/fallenbagel/jellyseerr
     container_name: jellyseerr
     environment:
@@ -130,6 +142,21 @@ services:
       - ${ROOT}/jellyfin:/config
       - ${ROOT}/cache:/cache
       - type: bind
-        source: ${ROOT}/data
+        source: ${DATAROOT}/data
         target: /data
     restart: "unless-stopped"
+  notifiarr:
+    container_name: notifiarr
+    hostname: notifiarr
+    image: golift/notifiarr
+    restart: unless-stopped
+    environment:
+      - PUID=${UID}
+      - PGID=${GID}
+      - TZ=Europe/Berlin
+    ports:
+      - "5454:5454"
+    volumes:
+      - ${ROOT}/notifiarr:/config
+      - /var/run/utmp:/var/run/utmp
+      - /etc/machine-id:/etc/machine-id
